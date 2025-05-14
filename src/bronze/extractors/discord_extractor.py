@@ -57,8 +57,7 @@ class DiscordExtractor:
                         "channel_name": channel.name,
                         "channel_id": channel.id,
                         "created_at": channel.created_at.isoformat(),
-                        "position": channel.position,
-                        "category": channel.category.name if channel.category else None
+
                     })
                 
                 print("Channel fetch completed successfully")
