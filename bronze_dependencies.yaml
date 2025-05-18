@@ -1,0 +1,190 @@
+# External Dependencies
+external_dependencies:
+  - name: discord_api
+    type: api
+    description: Discord API for fetching chat data
+    authentication:
+      type: bot_token
+      required_scopes:
+        - channels:read
+        - messages:read
+        - threads:read
+        - users:read
+    rate_limits:
+      - type: global
+        requests_per_second: 50
+      - type: channel
+        requests_per_second: 5
+    documentation: https://discord.com/developers/docs/intro
+
+  - name: notion_api
+    type: api
+    description: Notion API for fetching workspace data
+    authentication:
+      type: integration_token
+      required_scopes:
+        - read_content
+        - read_user
+        - read_database
+    rate_limits:
+      - type: global
+        requests_per_second: 3
+    documentation: https://developers.notion.com/reference/intro
+
+# Bronze Layer Dependencies
+bronze_tables:
+  - name: bronze.discord_chat_table
+    description: Raw Discord chat data
+    columns:
+      - id
+      - channel_name
+      - channel_id
+      - thread_name
+      - thread_id
+      - message_id
+      - author
+      - author_id
+      - content
+      - created_at
+      - edited_at
+      - is_thread
+      - ingestion_timestamp
+    refresh_schedule: weekly
+    data_quality:
+      - freshness_check
+      - volume_check
+      - column_validation
+    upstream_dependencies:
+      - discord_api
+
+  - name: bronze.discord_users
+    description: Raw Discord user data
+    columns:
+      - user_id
+      - username
+      - display_name
+      - avatar_url
+      - created_at
+      - last_seen
+      - is_bot
+      - roles
+      - status
+      - ingestion_timestamp
+    refresh_schedule: weekly
+    data_quality:
+      - user_id_validation
+      - username_validation
+      - last_seen_freshness
+    upstream_dependencies:
+      - discord_api
+
+  - name: bronze.notion_pages
+    description: Raw Notion page data
+    columns:
+      - page_id
+      - title
+      - created_time
+      - last_edited_time
+      - created_by
+      - last_edited_by
+      - parent_id
+      - parent_type
+      - url
+      - content
+      - properties
+      - ingestion_timestamp
+    refresh_schedule: weekly
+    data_quality:
+      - page_id_validation
+      - content_validation
+      - url_validation
+    upstream_dependencies:
+      - notion_api
+
+  - name: bronze.notion_users
+    description: Raw Notion user data
+    columns:
+      - user_id
+      - name
+      - email
+      - avatar_url
+      - type
+      - created_time
+      - last_seen
+      - ingestion_timestamp
+    refresh_schedule: weekly
+    data_quality:
+      - user_id_validation
+      - email_validation
+      - last_seen_freshness
+    upstream_dependencies:
+      - notion_api
+
+# Data Flow (Bronze Layer Only)
+data_flow:
+  - source: discord_api
+    target: bronze.discord_chat_table
+    transformation: raw_data_ingestion
+    schedule: weekly
+
+  - source: discord_api
+    target: bronze.discord_users
+    transformation: user_data_ingestion
+    schedule: weekly
+
+  - source: notion_api
+    target: bronze.notion_pages
+    transformation: page_data_ingestion
+    schedule: weekly
+
+  - source: notion_api
+    target: bronze.notion_users
+    transformation: user_data_ingestion
+    schedule: weekly
+
+# Data Quality Rules (Bronze Layer)
+data_quality_rules:
+  - name: message_freshness
+    description: Messages should be no older than 24 hours
+    check: max_age_hours <= 24
+    severity: warning
+
+  - name: content_validation
+    description: Message content should not be empty
+    check: content IS NOT NULL AND length(content) > 0
+    severity: error
+
+  - name: user_validation
+    description: User data should be valid
+    check: user_id IS NOT NULL AND username IS NOT NULL
+    severity: error
+
+  - name: page_validation
+    description: Notion page data should be valid
+    check: page_id IS NOT NULL AND title IS NOT NULL
+    severity: error
+
+# Monitoring (Bronze Layer)
+monitoring:
+  - name: api_health
+    type: external
+    target: 
+      - discord_api
+      - notion_api
+    checks:
+      - response_time
+      - error_rate
+      - rate_limit_status
+
+  - name: bronze_layer_health
+    type: internal
+    targets:
+      - bronze.discord_chat_table
+      - bronze.discord_users
+      - bronze.notion_pages
+      - bronze.notion_users
+    checks:
+      - data_freshness
+      - row_count
+      - null_rates
+      - error_logs 
