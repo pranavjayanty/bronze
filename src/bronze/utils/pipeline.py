@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 import pandas as pd
+import asyncio
 
 class Pipeline:
     """Base pipeline class with common functionality."""
@@ -139,3 +140,46 @@ def run_pipeline(extractor_class: Type,
     except Exception as e:
         pipeline.logger.error(f"Pipeline failed: {str(e)}")
         raise 
+
+
+
+# BRONZE DISCORD "DML"
+
+from extractors.discord_extractor import DiscordExtractor
+from pipeline import Pipeline
+import asyncio
+load_dotenv()
+DARCY_KEY = os.getenv('DARCY_KEY')
+TEST_SERVER_ID = os.getenv('TEST_SERVER_ID')
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+# DISCORD CHANNELS --------------------------------------------------------------------- */
+discord_channels_extractor = DiscordExtractor(DARCY_KEY, TEST_SERVER_ID)
+discord_channels_pipeline = Pipeline(
+    ddl_filename = 'create_discord_channels_table.sql',
+    table_name = 'discord_channels',
+    engine = _create_db_engine(),
+    recreate_table = True
+)
+
+# Follows an ETL process
+raw_data = asyncio.run(discord_channels_extractor.fetch_discord_channels()) # Extract
+if discord_channels_extractor.recreate_table:
+    discord_channels_pipeline.create_table() # Transform
+discord_channels_pipeline.run_ingestor_from_df(asyncio.run(discord_channels_extractor.parse_discord_data(raw_data))) # Load
+discord_channels_pipeline.test_run_status()
+
+# DISCORD CHAT --------------------------------------------------------------------- */
+discord_chat_extractor = DiscordExtractor(DARCY_KEY, TEST_SERVER_ID)
+discord_chat_pipeline = Pipeline(
+    ddl_filename = 'create_discord_chat_table.sql',
+    table_name = 'discord_chat',
+    engine = _create_db_engine(),
+    recreate_table = True
+)
+
+raw_data = asyncio.run(discord_chat_extractor.fetch_discord_chat()) # Extract
+if discord_chat_extractor.recreate_table:
+    discord_chat_pipeline.create_table() # Transform                            
+discord_chat_pipeline.run_ingestor_from_df(asyncio.run(discord_chat_extractor.parse_discord_data(raw_data))) # Load
+discord_chat_pipeline.test_run_status()

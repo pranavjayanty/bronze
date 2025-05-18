@@ -4,7 +4,6 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 import pandas as pd
-import discord
 from discord import Client, Intents, TextChannel
 from dotenv import load_dotenv
 
@@ -29,6 +28,7 @@ class DiscordExtractor:
         if not self.token or not self.guild_id:
             raise ValueError("DARCY_KEY and TEST_SERVER_ID must be set in .env file")
         
+
         # Configure intents
         self.intents = Intents.default()
         self.intents.message_content = True
@@ -39,8 +39,9 @@ class DiscordExtractor:
         """Create and return a new Discord client with configured intents."""
         return Client(intents=self.intents)
     
-    async def fetch_channels(self) -> pd.DataFrame:
-        """Fetch all text channels and return as DataFrame."""
+    # Extract
+    async def fetch_discord_channels(self) -> List[Dict[str, Any]]:
+        """Fetch all text channels and return as list of dictionaries."""
         client = self.create_client()
         channels_data = []
         
@@ -57,21 +58,22 @@ class DiscordExtractor:
                         "channel_name": channel.name,
                         "channel_id": channel.id,
                         "created_at": channel.created_at.isoformat(),
-
                     })
                 
                 print("Channel fetch completed successfully")
                 
             except Exception as e:
                 print(f"Error fetching channels: {str(e)}")
+                raise
             finally:
                 await client.close()
         
         await client.start(self.token)
-        return pd.DataFrame(channels_data)
+        return channels_data
     
-    async def fetch_chat_history(self) -> pd.DataFrame:
-        """Fetch all messages and threads and return as DataFrame."""
+    # Extract
+    async def fetch_discord_chat(self) -> List[Dict[str, Any]]:
+        """Fetch all messages and threads and return as list of dictionaries."""
         client = self.create_client()
         messages_data = []
         
@@ -94,8 +96,8 @@ class DiscordExtractor:
                             "thread_name": None,
                             "thread_id": None,
                             "message_id": message.id,
-                            "author": str(message.author),
-                            "author_id": message.author.id,
+                            "discord_username": str(message.author),        # The user's display name
+                            "discord_user_id": message.author.id,           # The user's unique ID
                             "content": message.content,
                             "created_at": message.created_at.isoformat(),
                             "edited_at": message.edited_at.isoformat() if message.edited_at else None,
@@ -103,7 +105,7 @@ class DiscordExtractor:
                         })
                     
                     # Fetch and process threads
-                    threads = await channel.archived_threads(limit=None)
+                    threads = [t async for t in channel.archived_threads(limit=None)]
                     active_threads = channel.threads
                     
                     for thread in [*threads, *active_threads]:
@@ -115,8 +117,8 @@ class DiscordExtractor:
                                 "thread_name": thread.name,
                                 "thread_id": thread.id,
                                 "message_id": message.id,
-                                "author": str(message.author),
-                                "author_id": message.author.id,
+                                "discord_username": str(message.author),        # The user's display name
+                                "discord_user_id": message.author.id,           # The user's unique ID
                                 "content": message.content,
                                 "created_at": message.created_at.isoformat(),
                                 "edited_at": message.edited_at.isoformat() if message.edited_at else None,
@@ -127,34 +129,19 @@ class DiscordExtractor:
                 
             except Exception as e:
                 print(f"Error fetching chat history: {str(e)}")
+                raise
             finally:
                 await client.close()
         
         await client.start(self.token)
-        return pd.DataFrame(messages_data)
+        return messages_data
     
-    async def parse(self, input_path: Optional[str] = None) -> pd.DataFrame:
-        """
-        Main method to fetch and process Discord data.
-        The input_path parameter is kept for compatibility but not used.
-        
-        Args:
-            input_path: Optional path parameter (not used in this implementation)
-            
-        Returns:
-            pd.DataFrame: Processed Discord data ready for database insertion
-        """
+    # Transform
+    async def parse_discord_data(self, raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
+        """Transform raw Discord data into a DataFrame."""
         try:
-            # Fetch chat history
-            df = await self.fetch_chat_history()
-            
-            # Add metadata columns
-            df['ingestion_timestamp'] = pd.Timestamp.now()
-            df['source'] = 'discord_extractor'
-            
-            return df
-            
+            return pd.DataFrame(raw_data)
         except Exception as e:
             if self.logger:
-                self.logger.error(f"Error processing Discord data: {str(e)}")
+                self.logger.error(f"Error transforming Discord data: {str(e)}")
             raise 

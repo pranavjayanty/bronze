@@ -1,19 +1,18 @@
 -- Create a table for storing Discord chat history
-CREATE TABLE IF NOT EXISTS bronze.discord_chat_table (
+CREATE TABLE IF NOT EXISTS bronze.discord_chat (
     id SERIAL PRIMARY KEY,
     channel_name VARCHAR(255) NOT NULL,
     channel_id BIGINT NOT NULL,
     thread_name VARCHAR(255),
     thread_id BIGINT,
     message_id BIGINT NOT NULL,
-    author VARCHAR(255) NOT NULL,
-    author_id BIGINT NOT NULL,
+    discord_username VARCHAR(255) NOT NULL,
+    discord_user_id BIGINT NOT NULL,
     content TEXT,
     created_at TIMESTAMP NOT NULL,
     edited_at TIMESTAMP,
     is_thread BOOLEAN NOT NULL DEFAULT FALSE,
-    ingestion_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+    ingestion_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for common query patterns
