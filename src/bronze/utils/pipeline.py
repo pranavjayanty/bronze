@@ -10,10 +10,10 @@ import asyncio
 from src.config import config
 
 class Pipeline:
-    def __init__(self, ddl_filepath: str, table_name: str, engine = _create_db_engine(), recreate_table: bool = True):
+    def __init__(self, ddl_filepath: str, table_name: str, recreate_table: bool = True):
         self.ddl_file_path = ddl_filepath
         self.table_name = table_name
-        self.engine = engine
+        self.engine = self._create_db_engine()
         self.recreate_table = recreate_table
     def _create_db_engine(self):
         """calls config.py from src/config.py"""
