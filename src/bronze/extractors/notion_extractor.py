@@ -5,7 +5,6 @@ import pandas as pd
 from notion_client import Client
 from dotenv import load_dotenv
 
-
 class NotionExtractor:
     """
     Notion data extractor that:
@@ -14,20 +13,27 @@ class NotionExtractor:
     - Returns the processed data
     """
     
-    def __init__(self):
-        # Load environment variables
-        load_dotenv()
-        self.token = os.getenv("NOTION_API_KEY")
-        self.database_id = "f56fb0218a4b41718ac610e6f1aa06cb"
+    def __init__(self, api_key: str, database_id: str):
+        """
+        Initialize NotionExtractor with API key and database ID.
         
-        if not self.token:
-            raise ValueError("NOTION_API_KEY must be set in .env file")
+        Args:
+            api_key (str): Notion API key
+            database_id (str): Notion database ID
+        """
+        if not api_key:
+            raise ValueError("NOTION_API_KEY must be provided")
         
+        if not database_id:
+            raise ValueError("NOTION_DATABASE_ID must be provided")
+            
+        self.token = api_key
+        self.database_id = database_id
         # Initialize Notion client
         self.client = Client(auth=self.token)
         self.logger = None
     
-    def fetch_data(self) -> List[Dict[str, Any]]:
+    def fetch_user_data(self) -> List[Dict[str, Any]]:
         """
         Fetch raw pages from the Notion Committee database with pagination.
         """
@@ -58,7 +64,7 @@ class NotionExtractor:
                     "linkedin": self._get_property_value(props.get("LinkedIn"), "url"),
                     "working_on": self._get_property_value(props.get("I'm Working On"), "rich_text"),
                     "workload": self._get_property_value(props.get("My Workload Is"), "select"),
-                    "last_edited_time": page.get("last_edited_time")
+                    //user_"last_edited_time": page.get("last_edited_time")
                 }
                 results.append(record)
 
@@ -118,7 +124,7 @@ class NotionExtractor:
 
         return ""
     
-    def transform_data(self, raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
+    def transform_user_data(self, raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
         """
         Convert raw record list into a DataFrame with metadata.
         """
@@ -129,7 +135,6 @@ class NotionExtractor:
             "working_on", "workload", "last_edited_time"
         ]
         df = df[keep]
-        df["ingestion_timestamp"] = pd.Timestamp.now()
         return df
     
     def parse(self, input_path: Optional[str] = None) -> pd.DataFrame:
