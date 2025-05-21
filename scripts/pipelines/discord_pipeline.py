@@ -1,6 +1,12 @@
 import argparse
+import os
+import asyncio
+from dotenv import load_dotenv
 from bronze.extractors.discord_extractor import DiscordExtractor
-from bronze.utils.pipeline import run_pipeline
+from bronze.utils.pipeline import Pipeline
+import sqlalchemy as sa
+
+
 
 def main():
     # Parse command line arguments
@@ -8,13 +14,42 @@ def main():
     parser.add_argument('--input-path', required=True, help='Path to input file')
     args = parser.parse_args()
     
-    # Run the pipeline with Discord-specific components
-    run_pipeline(
-        extractor_class=DiscordExtractor,
-        ddl_filename='create_discord_table.sql',
-        table_name='discord_data',
-        input_path=args.input_path
+    # Load environment variables
+    load_dotenv()
+    DARCY_KEY = os.getenv('DARCY_KEY') # Basically an authorised discord client
+    TEST_SERVER_ID = os.getenv('TEST_SERVER_ID') # The server id of the AI server
+
+    if not DARCY_KEY or not TEST_SERVER_ID:
+        raise ValueError("DARCY_KEY and TEST_SERVER_ID must be set in .env file")
+    
+    # DISCORD CHANNELS --------------------------------------------------------------------- */
+    discord_channels_extractor = DiscordExtractor(DARCY_KEY, TEST_SERVER_ID)
+    discord_channels_pipeline = Pipeline(
+        ddl_filepath = 'create_discord_channels_table.sql',
+        table_name = 'discord_channels',
     )
+
+    # Follows an ETL process
+    raw_data = asyncio.run(discord_channels_extractor.fetch_discord_channels()) # Extract
+    if discord_channels_extractor.recreate_table:
+        discord_channels_pipeline.create_table() # Transform
+    discord_channels_pipeline.ingest_from_df(asyncio.run(discord_channels_extractor.parse_discord_data(raw_data))) # Load
+    discord_channels_pipeline.test_run_status()
+
+    # # DISCORD CHAT --------------------------------------------------------------------- */
+    # discord_chat_extractor = DiscordExtractor(DARCY_KEY, TEST_SERVER_ID)
+    # discord_chat_pipeline = Pipeline(
+    #     ddl_filepath = 'create_discord_chat_table.sql',
+    #     table_name = 'discord_chat',
+    # )
+
+    # raw_data = asyncio.run(discord_chat_extractor.fetch_discord_chat()) # Extract
+    # if discord_chat_extractor.recreate_table:
+    #     discord_chat_pipeline.create_table() # Transform                            
+    # discord_chat_pipeline.ingest_from_df(asyncio.run(discord_chat_extractor.parse_discord_data(raw_data))) # Load
+    # discord_chat_pipeline.test_run_status()
 
 if __name__ == "__main__":
     main() 
+
+
